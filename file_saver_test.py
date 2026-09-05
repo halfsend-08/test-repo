@@ -5,13 +5,14 @@ Verifies correct handling of UTF-8 multibyte content at and around the
 """
 
 import os
+import shutil
 import tempfile
 import unittest
 
 from file_saver import BUFFER_SIZE, save_file
 
 
-def _make_multibyte_text(target_bytes):
+def _make_multibyte_text(target_bytes: int) -> str:
     """Generate a string of emoji characters whose UTF-8 encoding is
     approximately target_bytes in size. Each emoji is 4 bytes in UTF-8."""
     char = "\U0001F600"
@@ -20,7 +21,7 @@ def _make_multibyte_text(target_bytes):
     return char * count
 
 
-def _make_ascii_text(target_bytes):
+def _make_ascii_text(target_bytes: int) -> str:
     """Generate ASCII text of exactly target_bytes."""
     return "A" * target_bytes
 
@@ -30,7 +31,6 @@ class TestSaveFile(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
 
     def tearDown(self):
-        import shutil
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_save_small_ascii_file(self):
@@ -54,6 +54,23 @@ class TestSaveFile(unittest.TestCase):
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), content)
+
+    def test_save_exact_64kb_multibyte_succeeds(self):
+        """Save exactly 64KB of multibyte UTF-8 text — boundary case."""
+        filepath = os.path.join(self.tmpdir, "64kb_multibyte.txt")
+        content = _make_multibyte_text(BUFFER_SIZE)
+        byte_len = len(content.encode("utf-8"))
+        self.assertEqual(byte_len, BUFFER_SIZE)
+        save_file(filepath, content)
+        with open(filepath, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), content)
+
+    def test_save_empty_content(self):
+        """Save empty string — edge case for chunked write loop."""
+        filepath = os.path.join(self.tmpdir, "empty.txt")
+        save_file(filepath, "")
+        with open(filepath, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "")
 
     def test_save_65kb_multibyte_succeeds(self):
         """Save 65KB of multibyte UTF-8 text — expect success, no crash.
