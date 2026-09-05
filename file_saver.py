@@ -1,29 +1,19 @@
-"""File save utility with correct UTF-8 buffer handling.
+"""File save utility with correct UTF-8 byte-length handling.
 
-Fixes a buffer overrun that caused a segmentation fault when saving files
-larger than 64KB containing multibyte UTF-8 characters (e.g., emoji or CJK
-characters). The root cause was using character count (len(text)) for buffer
-allocation instead of the actual byte length of the encoded content.
+Encodes text content to UTF-8 and writes the resulting bytes to disk,
+ensuring buffer operations use actual byte length rather than character
+count. Callers must validate filepath; passing untrusted input directly
+risks arbitrary file writes.
 """
-
-# Buffer size threshold in bytes (64KB)
-BUFFER_SIZE = 64 * 1024
 
 
 def save_file(filepath: str, content: str) -> None:
-    """Save text content to a file, correctly handling UTF-8 encoding.
+    """Save text content to a file using UTF-8 encoding.
 
-    Uses byte length (not character count) to determine buffer sizing,
-    preventing buffer overruns when multibyte UTF-8 characters push the
-    actual encoded size past the buffer boundary. Callers must validate
-    filepath; passing untrusted input directly risks arbitrary file writes.
+    Encodes content to bytes before writing so that the byte length
+    (not character count) governs all buffer operations, preventing
+    overruns with multibyte characters.
     """
     encoded = content.encode("utf-8")
-    byte_length = len(encoded)
-
     with open(filepath, "wb") as f:
-        offset = 0
-        while offset < byte_length:
-            chunk_end = min(offset + BUFFER_SIZE, byte_length)
-            f.write(encoded[offset:chunk_end])
-            offset = chunk_end
+        f.write(encoded)

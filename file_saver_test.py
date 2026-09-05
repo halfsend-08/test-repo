@@ -1,7 +1,7 @@
 """Tests for file_saver module.
 
-Verifies correct handling of UTF-8 multibyte content at and around the
-64KB buffer boundary, matching the test cases from the triage analysis.
+Verifies correct handling of UTF-8 multibyte content across a range of
+file sizes, including edge cases around the 64KB boundary.
 """
 
 import os
@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import unittest
 
-from file_saver import BUFFER_SIZE, save_file
+from file_saver import save_file
 
 
 def _make_multibyte_text(target_bytes: int) -> str:
@@ -59,15 +59,16 @@ class TestSaveFile(unittest.TestCase):
     def test_save_exact_64kb_multibyte_succeeds(self):
         """Save exactly 64KB of multibyte UTF-8 text — boundary case."""
         filepath = os.path.join(self.tmpdir, "64kb_multibyte.txt")
-        content = _make_multibyte_text(BUFFER_SIZE)
+        target = 64 * 1024
+        content = _make_multibyte_text(target)
         byte_len = len(content.encode("utf-8"))
-        self.assertEqual(byte_len, BUFFER_SIZE)
+        self.assertEqual(byte_len, target)
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), content)
 
     def test_save_empty_content(self):
-        """Save empty string — edge case for chunked write loop."""
+        """Save empty string — edge case."""
         filepath = os.path.join(self.tmpdir, "empty.txt")
         save_file(filepath, "")
         with open(filepath, "r", encoding="utf-8") as f:
@@ -104,10 +105,7 @@ class TestSaveFile(unittest.TestCase):
         with open(filepath, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), content)
 
-    def test_buffer_size_constant(self):
-        """Verify buffer size is 64KB."""
-        self.assertEqual(BUFFER_SIZE, 64 * 1024)
-
+    @unittest.skipIf(os.getuid() == 0, "root bypasses permission checks")
     def test_write_error_raises_oserror(self):
         """Verify that write failures propagate as OSError."""
         readonly_dir = os.path.join(self.tmpdir, "readonly")
