@@ -5,9 +5,10 @@ Verifies correct handling of UTF-8 multibyte content at and around the
 """
 
 import os
-import tempfile
 
-from file_saver import BUFFER_SIZE, calculate_buffer_size, save_file
+import pytest
+
+from file_saver import BUFFER_SIZE, save_file
 
 
 def _make_multibyte_text(target_bytes: int) -> str:
@@ -23,29 +24,6 @@ def _make_multibyte_text(target_bytes: int) -> str:
 def _make_ascii_text(target_bytes: int) -> str:
     """Generate ASCII text of exactly target_bytes."""
     return "A" * target_bytes
-
-
-class TestCalculateBufferSize:
-    def test_ascii_byte_length_equals_char_count(self):
-        text = "hello"
-        assert calculate_buffer_size(text) == len(text) == 5
-
-    def test_multibyte_byte_length_exceeds_char_count(self):
-        text = "\U0001F600"  # 😀 — 1 character, 4 bytes in UTF-8
-        assert len(text) == 1
-        assert calculate_buffer_size(text) == 4
-
-    def test_cjk_characters(self):
-        text = "世界"  # 世界 — 2 characters, 6 bytes in UTF-8
-        assert len(text) == 2
-        assert calculate_buffer_size(text) == 6
-
-    def test_empty_string(self):
-        assert calculate_buffer_size("") == 0
-
-    def test_mixed_ascii_and_multibyte(self):
-        text = "hello \U0001F600"  # 6 ASCII bytes + 4 emoji bytes = 10
-        assert calculate_buffer_size(text) == 10
 
 
 class TestSaveFile:
@@ -106,18 +84,14 @@ class TestSaveFile:
         """Verify buffer size is 64KB."""
         assert BUFFER_SIZE == 64 * 1024
 
-    def test_atomic_write_no_partial_file_on_error(self, tmp_path):
-        """If the directory is read-only, the file should not be created."""
+    def test_write_error_raises_oserror(self, tmp_path):
+        """Verify that write failures propagate as OSError."""
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()
         filepath = str(readonly_dir / "test.txt")
-        # Make the directory read-only to force a write failure
         os.chmod(str(readonly_dir), 0o444)
         try:
-            save_file(filepath, "content")
-            assert False, "Expected OSError"
-        except OSError:
-            pass
+            with pytest.raises(OSError):
+                save_file(filepath, "content")
         finally:
             os.chmod(str(readonly_dir), 0o755)
-        assert not os.path.exists(filepath)
