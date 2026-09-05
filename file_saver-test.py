@@ -5,93 +5,103 @@ Verifies correct handling of UTF-8 multibyte content at and around the
 """
 
 import os
-
-import pytest
+import tempfile
+import unittest
 
 from file_saver import BUFFER_SIZE, save_file
 
 
-def _make_multibyte_text(target_bytes: int) -> str:
+def _make_multibyte_text(target_bytes):
     """Generate a string of emoji characters whose UTF-8 encoding is
     approximately target_bytes in size. Each emoji is 4 bytes in UTF-8."""
-    # U+1F600 (😀) is 4 bytes in UTF-8
     char = "\U0001F600"
     char_bytes = len(char.encode("utf-8"))  # 4
     count = target_bytes // char_bytes
     return char * count
 
 
-def _make_ascii_text(target_bytes: int) -> str:
+def _make_ascii_text(target_bytes):
     """Generate ASCII text of exactly target_bytes."""
     return "A" * target_bytes
 
 
-class TestSaveFile:
-    def test_save_small_ascii_file(self, tmp_path):
-        filepath = str(tmp_path / "small_ascii.txt")
+class TestSaveFile(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_save_small_ascii_file(self):
+        filepath = os.path.join(self.tmpdir, "small_ascii.txt")
         content = "Hello, world!"
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
-    def test_save_small_multibyte_file(self, tmp_path):
-        filepath = str(tmp_path / "small_multibyte.txt")
+    def test_save_small_multibyte_file(self):
+        filepath = os.path.join(self.tmpdir, "small_multibyte.txt")
         content = "\U0001F600\U0001F601\U0001F602"
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
-    def test_save_63kb_multibyte_succeeds(self, tmp_path):
+    def test_save_63kb_multibyte_succeeds(self):
         """Save 63KB of multibyte UTF-8 text — expect success."""
-        filepath = str(tmp_path / "63kb_multibyte.txt")
+        filepath = os.path.join(self.tmpdir, "63kb_multibyte.txt")
         content = _make_multibyte_text(63 * 1024)
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
-    def test_save_65kb_multibyte_succeeds(self, tmp_path):
+    def test_save_65kb_multibyte_succeeds(self):
         """Save 65KB of multibyte UTF-8 text — expect success, no crash.
 
         This is the primary regression test: the old code used character
         count for buffer allocation, causing a buffer overrun when
         multibyte characters pushed the byte count past 64KB.
         """
-        filepath = str(tmp_path / "65kb_multibyte.txt")
+        filepath = os.path.join(self.tmpdir, "65kb_multibyte.txt")
         content = _make_multibyte_text(65 * 1024)
         byte_len = len(content.encode("utf-8"))
-        assert byte_len >= 65 * 1024  # confirm we exceed the boundary
+        self.assertGreaterEqual(byte_len, 65 * 1024)
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
-    def test_save_65kb_ascii_succeeds(self, tmp_path):
+    def test_save_65kb_ascii_succeeds(self):
         """Save 65KB of ASCII text — expect success (control case)."""
-        filepath = str(tmp_path / "65kb_ascii.txt")
+        filepath = os.path.join(self.tmpdir, "65kb_ascii.txt")
         content = _make_ascii_text(65 * 1024)
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
-    def test_saved_content_matches_input(self, tmp_path):
+    def test_saved_content_matches_input(self):
         """Verify saved file content matches input for mixed content."""
-        filepath = str(tmp_path / "mixed.txt")
+        filepath = os.path.join(self.tmpdir, "mixed.txt")
         content = "ASCII prefix " + _make_multibyte_text(70 * 1024) + " ASCII suffix"
         save_file(filepath, content)
         with open(filepath, "r", encoding="utf-8") as f:
-            assert f.read() == content
+            self.assertEqual(f.read(), content)
 
     def test_buffer_size_constant(self):
         """Verify buffer size is 64KB."""
-        assert BUFFER_SIZE == 64 * 1024
+        self.assertEqual(BUFFER_SIZE, 64 * 1024)
 
-    def test_write_error_raises_oserror(self, tmp_path):
+    def test_write_error_raises_oserror(self):
         """Verify that write failures propagate as OSError."""
-        readonly_dir = tmp_path / "readonly"
-        readonly_dir.mkdir()
-        filepath = str(readonly_dir / "test.txt")
-        os.chmod(str(readonly_dir), 0o444)
+        readonly_dir = os.path.join(self.tmpdir, "readonly")
+        os.makedirs(readonly_dir)
+        filepath = os.path.join(readonly_dir, "test.txt")
+        os.chmod(readonly_dir, 0o444)
         try:
-            with pytest.raises(OSError):
+            with self.assertRaises(OSError):
                 save_file(filepath, "content")
         finally:
-            os.chmod(str(readonly_dir), 0o755)
+            os.chmod(readonly_dir, 0o755)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -15,15 +15,8 @@ def save_file(filepath: str, content: str) -> None:
 
     Uses byte length (not character count) to determine buffer sizing,
     preventing buffer overruns when multibyte UTF-8 characters push the
-    actual encoded size past the buffer boundary.
-
-    Args:
-        filepath: Destination file path. Callers must validate this path;
-            passing untrusted input directly risks arbitrary file writes.
-        content: Text content to save.
-
-    Raises:
-        OSError: If the file cannot be written.
+    actual encoded size past the buffer boundary. Callers must validate
+    filepath; passing untrusted input directly risks arbitrary file writes.
     """
     encoded = content.encode("utf-8")
     byte_length = len(encoded)
