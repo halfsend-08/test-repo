@@ -13,8 +13,7 @@ from file_saver import BUFFER_SIZE, save_file
 
 
 def _make_multibyte_text(target_bytes: int) -> str:
-    """Generate a string of emoji characters whose UTF-8 encoding is
-    approximately target_bytes in size. Each emoji is 4 bytes in UTF-8."""
+    """Generate emoji text whose UTF-8 encoding is approximately target_bytes."""
     char = "\U0001F600"
     char_bytes = len(char.encode("utf-8"))  # 4
     count = target_bytes // char_bytes
@@ -34,6 +33,7 @@ class TestSaveFile(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_save_small_ascii_file(self):
+        """Save a small ASCII file — basic smoke test."""
         filepath = os.path.join(self.tmpdir, "small_ascii.txt")
         content = "Hello, world!"
         save_file(filepath, content)
@@ -41,6 +41,7 @@ class TestSaveFile(unittest.TestCase):
             self.assertEqual(f.read(), content)
 
     def test_save_small_multibyte_file(self):
+        """Save a small multibyte UTF-8 file — basic smoke test."""
         filepath = os.path.join(self.tmpdir, "small_multibyte.txt")
         content = "\U0001F600\U0001F601\U0001F602"
         save_file(filepath, content)
